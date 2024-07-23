@@ -1,0 +1,9 @@
+#pragma once
+
+#define PUMP_OUTPUT_PIN 32
+#define HEARTHBEAT_LED_PIN 2
+#define SCREEN_BUTTON_PIN 15
+#define ENABLE_LED_PIN 16
+#define ENABLE_BUTTON_PIN 17
+#define PRESSURE_SENSOR_PIN 36
+#define ONEWIRE_PIN 36
