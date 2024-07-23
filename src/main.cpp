@@ -1,18 +1,20 @@
 #include <Arduino.h>
 #include <configuration.h>
+#include <init.h>
 
 #include <heartbeat.h>
-#include <networking.h>
 #include <web_handler.h>
 #include <pump.h>
 
-#include <WiFi.h>
 #include <WiFiClient.h>
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
 #include <LiquidCrystal_I2C.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+
+
+
 
 // FreeRTOS Configuration: Set the running core depending on the configuration
 #if CONFIG_FREERTOS_UNICORE
@@ -21,10 +23,20 @@
 #define ARDUINO_RUNNING_CORE 1
 #endif
 
+
+
+
+// Create the preferences object to store settings
 Preferences preferences;
 
 // Create the lcd object address 0x27 and 16 columns x 2 rows 
-LiquidCrystal_I2C lcd (0x27, 16,2); 
+LiquidCrystal_I2C myLCD (0x27, 16,2);
+
+// Create the serial object for the ESP32 hardware serial port 0
+HardwareSerial mySerial(0);
+
+
+
 
 // Declare FreeRTOS task functions and handlers
 TaskHandle_t TaskHeartbeatHandle;
@@ -35,6 +47,12 @@ TaskHandle_t TaskServerHandle;
 // TaskHandle_t TaskEnableButtonHandle;
 void TaskPressureSensor(void *pvParameters);
 TaskHandle_t TaskPressureSensorHandle;
+
+
+
+
+// Wifi Server state
+bool wifiAPMode = false;
 
 // State of the pump
 bool pumpState = false;
@@ -55,8 +73,8 @@ AsyncWebServer server(80);
 //
 // Variables
 //
-String wf_ssid = "";
-String wf_pass = "";
+String wiFiSSID = "";
+String wiFiPass = "";
 
 void setup() {
   // Set pin modes
@@ -67,94 +85,46 @@ void setup() {
   pinMode(ENABLE_BUTTON_PIN, INPUT);
 
   // Initialize serial communication
-  Serial.begin(9600);
-  Serial.println();
+  initializeSerial(mySerial);
 
   // Initialize LCD
-  lcd.init();
-  lcd.backlight();
-  lcd.setCursor(0, 0);
-  lcd.print("Booting...");
+  initializeLCD(myLCD);
 
   // Load pump speed from preferences
   reloadPumpSpeed(pumpSpeed, pumpState, preferences);
 
   // Load preferences for WiFi credentials
-  readWifiCredential(wf_ssid, wf_pass, preferences);
+  readWifiCredential(wiFiSSID, wiFiPass, preferences, mySerial, myLCD);
 
-  // Attempt to connect to the stored WiFi credentials
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(wf_ssid.c_str(), wf_pass.c_str());
-  for (int i = 0; i < 20 && WiFi.status() != WL_CONNECTED; i++) {
-    Serial.print(".");
-    delay(500);
-  }
-
-  // Check if the connection was successful
-  if (WiFi.status() == WL_CONNECTED) {
-    lcd.setCursor(0, 0);
-    lcd.clear();
-    Serial.println("");
-    Serial.print("Connected to ");
-    lcd.print("WiFi Connected");
-    Serial.println(wf_ssid);
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-    lcd.setCursor(0, 1);
-    lcd.print(WiFi.localIP());
-
-
-    // Start the server
-    server.begin();
-
-    // Create the heartbeat task
-    xTaskCreatePinnedToCore(TaskHeartbeat, "TaskHeartbeat", 2048, NULL, 3, &TaskHeartbeatHandle, ARDUINO_RUNNING_CORE);
-    xTaskCreatePinnedToCore(TaskServer, "TaskServer", 2048, NULL, 3, &TaskServerHandle, ARDUINO_RUNNING_CORE);
-    // xTaskCreatePinnedToCore(TaskEnableButton, "TaskEnableButton", 2048, NULL, 3, &TaskEnableButtonHandle, ARDUINO_RUNNING_CORE);
-    xTaskCreatePinnedToCore(TaskPressureSensor, "TaskPressureSensor", 2048, NULL, 3, &TaskPressureSensorHandle, ARDUINO_RUNNING_CORE);
-
-    return;
-  }
-
-  // If WiFi credentials are not valid, create an access point
-  Serial.println("Failed to connect to stored WiFi credentials.");
-  Serial.println("Creating WiFi access point...");
-  lcd.setCursor(0, 0);
-  lcd.clear();
-  lcd.print("WiFi AP Mode");
-
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP("SorzeWelder", "password");
-
-  // Set up server routes for WiFi configuration
-  server.on("/", HTTP_GET, serveWifiPage);
-
-  server.on("/save", HTTP_POST, [&](AsyncWebServerRequest *request){
-    handleWifiCredentialsSave(request, preferences);
-  });
-
-  server.on("/clear-wifi", HTTP_POST, [&](AsyncWebServerRequest *request){
-    handleWifiCredentialsClear(request, preferences);
-  });
-
-  server.on("/current-ap", HTTP_GET, [&](AsyncWebServerRequest *request){
-    handleGetWifiAp(request, preferences);
-  });
-
-  
-  // Start the server
-  server.begin();
+  // Initialize WiFi
+  initializeWiFi(wiFiSSID, wiFiPass, mySerial, myLCD, wifiAPMode);
 
   // Create the heartbeat task
   xTaskCreatePinnedToCore(TaskHeartbeat, "TaskHeartbeat", 2048, NULL, 3, &TaskHeartbeatHandle, ARDUINO_RUNNING_CORE);
+  xTaskCreatePinnedToCore(TaskServer, "TaskServer", 2048, NULL, 3, &TaskServerHandle, ARDUINO_RUNNING_CORE);
+  // xTaskCreatePinnedToCore(TaskEnableButton, "TaskEnableButton", 2048, NULL, 3, &TaskEnableButtonHandle, ARDUINO_RUNNING_CORE);
+  xTaskCreatePinnedToCore(TaskPressureSensor, "TaskPressureSensor", 2048, NULL, 3, &TaskPressureSensorHandle, ARDUINO_RUNNING_CORE);
 }
 
 void loop() {
   // Empty loop since all tasks are handled asynchronously
 }
 
+// FREE RTOS TASKS
 void TaskServer(void *pvParameters) {
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+  // Set the homepage route based on the WiFi mode
+  if (wifiAPMode) {
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+      request->redirect("/wifi");
+    });
+  } else {
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+      request->redirect("/commandpage");
+    });
+  }
+
+  // Set the routes for the command page
+  server.on("/commandpage", HTTP_GET, [](AsyncWebServerRequest *request){
     serveHomePage(request, pumpState, pumpSpeed, pressureSensorValue);
   });
 
@@ -210,11 +180,11 @@ void TaskServer(void *pvParameters) {
 //     // Check if the button state has changed
 //     if (currentEnableButtonState != enableButtonState) {
 //       // Update the LCD display and serial output
-//       lcd.setCursor(0, 1);
-//       lcd.clear();
-//       lcd.print(currentEnableButtonState ? "Enabled " : "Disabled");
-//       Serial.print("Enable Button: ");
-//       Serial.println(currentEnableButtonState ? "Enabled" : "Disabled");
+//       myLCD.setCursor(0, 1);
+//       myLCD.clear();
+//       myLCD.print(currentEnableButtonState ? "Enabled " : "Disabled");
+//       mySerial.print("Enable Button: ");
+//       mySerial.println(currentEnableButtonState ? "Enabled" : "Disabled");
 
 //       // Update the previous button state
 //       enableButtonState = currentEnableButtonState;
