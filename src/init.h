@@ -19,4 +19,10 @@ void initializeWiFi(String localWiFiSSID, String localWiFiPass, HardwareSerial &
 // Read WiFi credentials from the preferences
 void readWifiCredential(String &localWiFiSSID, String &localWiFiPass, Preferences &localPreferences, HardwareSerial &localSerial, LiquidCrystal_I2C &localLCD);
 
+// Read Zap preferences
+void readZappPreferences(int &localMainsFrequency, int &localPreHeatHalfCycles, int &localPreHeatZappIntervalHalfCycles, int &localZappHalfCycles, Preferences &localPreferences);
+
+// Read Fan preferences
+void readFanPreferences(int &localFanMode, int &localMinFanSpeed, int &localMaxFanSpeed, Preferences &localPreferences);
+
 #endif //INIT_H

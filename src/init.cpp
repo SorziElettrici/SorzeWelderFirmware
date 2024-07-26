@@ -141,3 +141,26 @@ void readWifiCredential(String &localWiFiSSID,
 
     localPreferences.end(); // Always close the preferences
 }
+
+void readZappPreferences(int &localMainsFrequency, int &localPreHeatHalfCycles, int &localPreHeatZappIntervalHalfCycles, int &localZappHalfCycles, Preferences &localPreferences) {
+    localPreferences.begin("zapp_prefs", true); // Open in read-only mode
+
+    // Read existing values if they are available
+    localMainsFrequency = localPreferences.getInt(MAINS_FREQUENCY_PREF, DEFAULT_MAINS_FREQUENCY); // Default to 50Hz if not found
+    localPreHeatHalfCycles = localPreferences.getInt(PREHEAT_HALFCYCLES_PREF, DEFAULT_PREHEAT_HALFCYCLES);
+    localPreHeatZappIntervalHalfCycles = localPreferences.getInt(PREHEAT_ZAPP_INTERVAL_HALFCYCLES_PREF, DEFAULT_PREHEAT_ZAPP_INTERVAL_HALFCYCLES);
+    localZappHalfCycles = localPreferences.getInt(ZAPP_HALFCYCLES_PREF, DEFAULT_ZAPP_HALFCYCLES);
+
+    localPreferences.end(); // Always close the preferences
+}
+
+void readFanPreferences(int &localFanMode, int &localMinFanSpeed, int &localMaxFanSpeed, Preferences &localPreferences) {
+    localPreferences.begin("fan_prefs", true); // Open in read-only mode
+
+    // Read existing values if they are available
+    localFanMode = localPreferences.getInt(FAN_MODE_PREF, DEFAULT_FAN_MODE); // Default to 0 if not found
+    localMinFanSpeed = localPreferences.getInt(MIN_FAN_SPEED_PREF, DEFAULT_MIN_FAN_SPEED);
+    localMaxFanSpeed = localPreferences.getInt(MAX_FAN_SPEED_PREF, DEFAULT_MAX_FAN_SPEED);
+
+    localPreferences.end(); // Always close the preferences
+}
