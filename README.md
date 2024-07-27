@@ -30,9 +30,9 @@ Fan auto mode is also still in development, the PID control is already implement
 still not properly tuned and not working as expected.
 Probably we'll also implement triple pulse mode even if it's not 100% necessary for
 good welds, but should be a nice feature to have.
-After this problably we'll stop the development of the firmware on this kind of hardware
-as the transformer is not the best option for a spot welder, and we'll focus on other
-hardware options.
+After this and some code clean-up problably we'll stop the development of the firmware
+on this kind of hardware as the transformer is not the best option for a spot welder,
+and we'll focus on other hardware options.
 
 
 ## License
