@@ -47,13 +47,20 @@ void initializeWiFi(String localWiFiSSID, String localWiFiPass, HardwareSerial &
   } else {
     // If WiFi credentials are not valid, create an access point and set the access point mode to true
     localWifiAPMode = true;
+    localSerial.println("Failed to connect to stored WiFi credentials.");
+    localSerial.println("Creating WiFi access point...");
+
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(AP_SSID, AP_PASSWORD);
 
     localLCD.setCursor(0, 0);
     localLCD.clear();
     localLCD.print("WiFi AP Mode");
+    localLCD.setCursor(0, 1);
+    localLCD.print(AP_SSID);
 
-    localSerial.println("Failed to connect to stored WiFi credentials.");
-    localSerial.println("Creating WiFi access point...");
+    localSerial.print("AP Created: ");
+    localSerial.println(AP_SSID);
   }
 }
 
